@@ -30,6 +30,8 @@ export type ContactWebhook = {
 };
 
 export type ContactWebhookResponse = {
-      success: false;
-      message: string;
-}
+  success: boolean;
+  message: string;
+  age?: number;
+  contactId?: number;
+};

@@ -19,7 +19,6 @@ export class ContactService {
   public async handleContactWebhook(
     body: ContactWebhook,
   ): Promise<ContactWebhookResponse> {
-    console.log('AMO CRM WEBHOOK');
     console.log(JSON.stringify(body, null, 2));
 
     const contact = body?.contacts?.add?.[0];
@@ -32,9 +31,7 @@ export class ContactService {
     }
 
     const contactId = Number(contact.id);
-    console.log(contactId);
     const birthdayTs = this.getBirthdayFromTs(contact);
-    console.log(birthdayTs);
     if (!birthdayTs) {
       return {
         success: false,
@@ -43,11 +40,11 @@ export class ContactService {
     }
 
     const age = this.calculateAgeFromTs(birthdayTs);
-    console.log(age);
     await this.updateContactAge(contactId, age);
 
     return {
       success: true,
+      message: 'Successfully updated contact',
       contactId,
       age,
     };
@@ -88,8 +85,6 @@ export class ContactService {
 
   public async updateContactAge(contactId: number, age: number): Promise<void> {
     const contactUrl = `${this.config.domain}/api/v4/contacts`;
-    console.log(contactUrl);
-    console.log(this.config.access_token);
     await axios.patch(
       contactUrl,
       [

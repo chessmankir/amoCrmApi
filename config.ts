@@ -7,6 +7,8 @@ export const amoConfig = (configService: ConfigService) => ({
   client_secret: configService.getOrThrow<string>('AMO_CLIENT_SECRET'),
   redirect_uri: configService.getOrThrow<string>('AMO_REDIRECT_URI'),
   auth_code: configService.getOrThrow<string>('AMO_AUTH_CODE'),
-  birthday_field_id: configService.getOrThrow<number>('AMO_BIRTHDAY_FIELD'),
-  age_field_id: configService.getOrThrow<number>('AMO_AGE_FIELD'),
+  birthday_field_id: Number(
+    configService.getOrThrow<string>('AMO_BIRTHDAY_FIELD'),
+  ),
+  age_field_id: Number(configService.getOrThrow<string>('AMO_AGE_FIELD')),
 });
