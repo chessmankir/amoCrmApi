@@ -1,109 +1,129 @@
 import { Injectable } from '@nestjs/common';
-import {
-  Contact,
-  ContactWebhook,
-  ContactWebhookResponse,
-} from './types/Contact';
+import { ContactAddedWebhook, ContactUpdatedWebhook, ContactWebhookRdo, ContactWebhookResponse } from './RDO/contact-webhook.rdo';
 import axios from 'axios';
-import { amoConfig } from '../../../config';
 import { ConfigService } from '@nestjs/config';
+import { Env } from '../../core/enums/env.enum';
 
 @Injectable()
 export class ContactService {
-  private readonly config: ReturnType<typeof amoConfig>;
+    constructor(private readonly configService: ConfigService) {}
 
-  constructor(private readonly configService: ConfigService) {
-    this.config = amoConfig(this.configService);
-  }
-
-  public async handleContactWebhook(
-    body: ContactWebhook,
-  ): Promise<ContactWebhookResponse> {
-    console.log(JSON.stringify(body, null, 2));
-
-    const contact = body?.contacts?.add?.[0];
-
-    if (!contact) {
-      return {
-        success: false,
-        message: 'not found user',
-      };
+    public async handleAddContactWebhook(body: ContactAddedWebhook): Promise<ContactWebhookResponse> {
+        console.log('handle contact webhook');
+        console.log(JSON.stringify(body, null, 2));
+        const contact = body?.contacts?.add?.[0];
+        return this.processContact(contact);
     }
 
-    const contactId = Number(contact.id);
-    const birthdayTs = this.getBirthdayFromTs(contact);
-    if (!birthdayTs) {
-      return {
-        success: false,
-        message: 'Field birthday not found.',
-      };
+    public async handleUpdateContactWebhook(body: ContactUpdatedWebhook): Promise<ContactWebhookResponse> {
+        const contact = body.contacts.update?.[0];
+        return this.processContact(contact);
     }
 
-    const age = this.calculateAgeFromTs(birthdayTs);
-    await this.updateContactAge(contactId, age);
+    private async processContact(contact?: ContactWebhookRdo): Promise<ContactWebhookResponse> {
+        if (!contact) {
+            return {
+                success: false,
+                message: 'not found user',
+            };
+        }
 
-    return {
-      success: true,
-      message: 'Successfully updated contact',
-      contactId,
-      age,
-    };
-  }
+        const contactId = Number(contact.id);
+        const birthdayTimestamp = this.getBirthdayFromTimestamp(contact);
+        if (!birthdayTimestamp) {
+            return {
+                success: false,
+                message: 'Field birthday not found.',
+            };
+        }
 
-  private getBirthdayFromTs(contact: Contact): number | null {
-    const birthdayField = contact.custom_fields?.find(
-      (field) => Number(field.id) === this.config.birthday_field_id,
-    );
-
-    const value = birthdayField?.values?.[0];
-
-    if (typeof value !== 'string') {
-      return null;
+        const age = this.calculateAgeFromTs(birthdayTimestamp);
+        const currentAge = this.getCurrentAge(contact);
+        if (currentAge === age) {
+            return {
+                success: true,
+                message: 'Successfully updated contact age',
+                contactId,
+                age,
+            };
+        }
+        await this.updateContactAge(contactId, age);
+        return {
+            success: true,
+            message: 'Successfully updated contact',
+            contactId,
+            age,
+        };
     }
 
-    return Number(value);
-  }
+    private getBirthdayFromTimestamp(contact: ContactWebhookRdo): number | null {
+        const birthdayField = contact.custom_fields?.find(
+            (field) => Number(field.id) === Number(this.configService.getOrThrow<string>(Env.AmoBirthdayField))
+        );
 
-  private calculateAgeFromTs(ts: number): number {
-    const birthDate = new Date(ts * 1000);
-    const today = new Date();
+        const value = birthdayField?.values?.[0];
 
-    let age = today.getFullYear() - birthDate.getFullYear();
+        if (typeof value !== 'string') {
+            return null;
+        }
 
-    const birthdayThisYear = new Date(
-      today.getFullYear(),
-      birthDate.getMonth(),
-      birthDate.getDate(),
-    );
-
-    if (today < birthdayThisYear) {
-      age--;
+        return Number(value);
     }
 
-    return age;
-  }
+    private getCurrentAge(contact: ContactWebhookRdo): number | null {
+        const ageField = contact.custom_fields?.find(
+            (field) => Number(field.id) === Number(this.configService.getOrThrow<string>(Env.AmoAgeField))
+        );
 
-  public async updateContactAge(contactId: number, age: number): Promise<void> {
-    const contactUrl = `${this.config.domain}/api/v4/contacts`;
-    await axios.patch(
-      contactUrl,
-      [
-        {
-          id: contactId,
-          custom_fields_values: [
+        const value = ageField?.values?.[0];
+
+        if (typeof value === 'string') {
+            return Number(value);
+        }
+
+        if (value && typeof value === 'object') {
+            return Number(value.value);
+        }
+
+        return null;
+    }
+
+    private calculateAgeFromTs(ts: number): number {
+        const birthDate = new Date(ts * 1000);
+        const today = new Date();
+
+        let age = today.getFullYear() - birthDate.getFullYear();
+
+        const birthdayThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+
+        if (today < birthdayThisYear) {
+            age--;
+        }
+
+        return age;
+    }
+
+    public async updateContactAge(contactId: number, age: number): Promise<void> {
+        const contactUrl = `${this.configService.getOrThrow<string>(Env.AmoDomain)}/api/v4/contacts`;
+        await axios.patch(
+            contactUrl,
+            [
+                {
+                    id: contactId,
+                    custom_fields_values: [
+                        {
+                            field_id: this.configService.getOrThrow<string>(Env.AmoAgeField),
+                            values: [{ value: age }],
+                        },
+                    ],
+                },
+            ],
             {
-              field_id: this.config.age_field_id,
-              values: [{ value: age }],
-            },
-          ],
-        },
-      ],
-      {
-        headers: {
-          Authorization: `Bearer ${this.config.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      },
-    );
-  }
+                headers: {
+                    Authorization: `Bearer ${this.configService.getOrThrow<string>(Env.AmoAccessToken)}`,
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+    }
 }
