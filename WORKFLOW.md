@@ -32,7 +32,6 @@ AMO_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 Сгененрированный долгосрочный токен
 
-
 Пример:
 
 ```env
@@ -73,7 +72,6 @@ AMO_REDIRECT_URI=https://example.com/api/amocrm/callback
 
 Authorization Code, который используется для первоначального получения access_token и refresh_token.
 
-
 > После обмена на токены обычно становится неактуальным.
 
 Пример:
@@ -87,7 +85,6 @@ AMO_AUTH_CODE=def50200...
 ## AMO_BIRTHDAY_FIELD
 
 ID пользовательского поля amoCRM, содержащего дату рождения контакта.
-
 
 Пример:
 
